@@ -3,4 +3,11 @@
 /log
 __pycache__
 .cache
+
+# Exclude world directories except room1
+src/simulation_bringup/world/room2/
+src/simulation_bringup/world/room3/
+src/simulation_bringup/world/room4/
+src/simulation_bringup/world/*/
+!src/simulation_bringup/world/room1/
 .vscode

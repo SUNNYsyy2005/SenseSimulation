@@ -10,3 +10,4 @@ topics:
     /robot_0/cmd_vel: { type: "geometry_msgs/Twist", route: client_to_server }
     /robot_0/livox/lidar_points: { type: "livox_ros_driver2/CustomMsg", route: server_to_client }
     /robot_0/imu_data: { type: "sensor_msgs/Imu", route: server_to_client }
+    /clock: { type: "rosgraph_msgs/Clock", route: server_to_client }

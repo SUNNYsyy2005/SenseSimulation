@@ -16,7 +16,8 @@ from launch.actions import (
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
-
+rob_x= ['0.5','1.0','0.0']
+rob_y = ['5.0','4.5','0.0']
 def robot_description(context: LaunchContext, robot_count, use_sim_time):
     action_list = []
     for i in range(int(context.perform_substitution(robot_count))):
@@ -48,7 +49,9 @@ def robot_description(context: LaunchContext, robot_count, use_sim_time):
             name="robot_state_publisher",
             namespace="robot_{}".format(i),
             parameters=[
-                {"use_sim_time": use_sim_time, "robot_description": robot_description}
+                {"use_sim_time": use_sim_time, 
+                 "robot_description": robot_description,
+                 "frame_prefix": "robot_{}/".format(i)}
             ],
             output="screen",
         )
@@ -60,8 +63,8 @@ def robot_description(context: LaunchContext, robot_count, use_sim_time):
                 '-entity', 'robot_{}'.format(i),
                 '-topic', 'robot_{}/robot_description'.format(i),
                 '-robot_namespace', 'robot_{}'.format(i),
-                '-x', str(i * 0.5),
-                '-y', '0.0',
+                '-x', rob_x[i],
+                '-y', rob_y[i],
                 '-z', '0.0',
                 '-Y', '0.0'
             ],
@@ -74,9 +77,44 @@ def robot_description(context: LaunchContext, robot_count, use_sim_time):
     return action_list
 
 
-def communication_client_launch(context: LaunchContext, robot_count, lidar_topic_name, lidar_pointcloud_topic_name, imu_topic_name, cmd_vel_topic_name):
+def communication_client_launch(context: LaunchContext, robot_count, lidar_topic_name, lidar_pointcloud_topic_name, imu_topic_name, cmd_vel_topic_name ,use_sim_time):
     action_list = []
     for i in range(int(context.perform_substitution(robot_count))):
+        robot_description_local = Command(
+            [
+                "xacro ",
+                os.path.join(
+                    get_package_share_directory("simulation_bringup"),
+                    "urdf",
+                    "sensebeetle_original.xacro",
+                ),
+            ]
+        )
+
+        # 2. (新) 本地的 joint_state_publisher (无 namespace)
+        start_joint_state_publisher_local_cmd = Node(
+            package="joint_state_publisher",
+            executable="joint_state_publisher",
+            name="joint_state_publisher", # <-- 无 namespace
+            parameters=[
+                {"use_sim_time": use_sim_time, "robot_description": robot_description_local}
+            ],
+            output="screen",
+        )
+
+        # 3. (新) 本地的 robot_state_publisher (无 namespace, 无 frame_prefix)
+        start_robot_state_publisher_local_cmd = Node(
+            package="robot_state_publisher",
+            executable="robot_state_publisher",
+            name="robot_state_publisher", # <-- 无 namespace
+            parameters=[
+                {"use_sim_time": use_sim_time, 
+                 "robot_description": robot_description_local
+                 # <-- 无 frame_prefix
+                }
+            ],
+            output="screen",
+        )
         communication_client_launch = IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(
@@ -95,6 +133,8 @@ def communication_client_launch(context: LaunchContext, robot_count, lidar_topic
         )
         action_list.append(SetEnvironmentVariable("ROS_DOMAIN_ID", str(i + 1)))
         action_list.append(communication_client_launch)
+        action_list.append(start_joint_state_publisher_local_cmd)
+        action_list.append(start_robot_state_publisher_local_cmd)
     action_list.append(SetEnvironmentVariable("ROS_DOMAIN_ID", str(0)))
     return action_list
 
@@ -155,7 +195,7 @@ def generate_launch_description():
     )
 
     declare_world_cmd = DeclareLaunchArgument(
-        "world_name", default_value="room1", description="Choose world"
+        "world_name", default_value="room2", description="Choose world"
     )
 
     gazebo_client_launch = IncludeLaunchDescription(
@@ -180,6 +220,18 @@ def generate_launch_description():
 
     ld = LaunchDescription()
 
+    # 设置 GAZEBO_MODEL_PATH 以包含 room2 模型目录
+    gazebo_model_path = os.path.join(
+        get_package_share_directory("simulation_bringup"),
+        "world",
+        "room2"
+    )
+    set_gazebo_model_path = SetEnvironmentVariable(
+        'GAZEBO_MODEL_PATH',
+        gazebo_model_path + ':' + os.environ.get('GAZEBO_MODEL_PATH', '')
+    )
+    ld.add_action(set_gazebo_model_path)
+
     ld.add_action(declare_robot_count)
     ld.add_action(declare_lidar_topic_name_cmd)
     ld.add_action(declare_lidar_pointcloud_topic_name)
@@ -195,7 +247,7 @@ def generate_launch_description():
         OpaqueFunction(function=robot_description, args=[robot_count, use_sim_time])
     )
     ld.add_action(
-        OpaqueFunction(function=communication_client_launch, args=[robot_count, lidar_topic_name, lidar_pointcloud_topic_name, imu_topic_name, cmd_vel_topic_name])
+        OpaqueFunction(function=communication_client_launch, args=[robot_count, lidar_topic_name, lidar_pointcloud_topic_name, imu_topic_name, cmd_vel_topic_name, use_sim_time])
     )
 
     return ld
