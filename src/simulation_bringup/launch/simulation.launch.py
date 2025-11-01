@@ -16,8 +16,8 @@ from launch.actions import (
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
-rob_x= ['0.5','1.0','0.0']
-rob_y = ['5.0','4.5','0.0']
+rob_x= ['13.5','14.0','0.5']
+rob_y = ['5.0','5.0','0.0']
 def robot_description(context: LaunchContext, robot_count, use_sim_time):
     action_list = []
     for i in range(int(context.perform_substitution(robot_count))):
@@ -195,7 +195,7 @@ def generate_launch_description():
     )
 
     declare_world_cmd = DeclareLaunchArgument(
-        "world_name", default_value="room2", description="Choose world"
+        "world_name", default_value="room1", description="Choose world"
     )
 
     gazebo_client_launch = IncludeLaunchDescription(
