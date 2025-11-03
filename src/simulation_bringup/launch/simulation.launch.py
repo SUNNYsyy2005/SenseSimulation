@@ -12,12 +12,13 @@ from launch.actions import (
     TimerAction,
     OpaqueFunction,
     SetEnvironmentVariable,
+    ExecuteProcess,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
-rob_x= ['13.5','14.0','0.5']
-rob_y = ['5.0','5.0','0.0']
+rob_x= ['0.0','1.0','2.0']#['13.5','14.0','0.5']
+rob_y = ['0.0','0.0','0.0']#['5.0','5.0','0.0']
 def robot_description(context: LaunchContext, robot_count, use_sim_time):
     action_list = []
     for i in range(int(context.perform_substitution(robot_count))):
@@ -29,6 +30,7 @@ def robot_description(context: LaunchContext, robot_count, use_sim_time):
                     "urdf",
                     "sensebeetle_original.xacro",
                 ),
+                " robot_namespace:=robot_{}".format(i),
             ]
         )
 
@@ -79,42 +81,7 @@ def robot_description(context: LaunchContext, robot_count, use_sim_time):
 
 def communication_client_launch(context: LaunchContext, robot_count, lidar_topic_name, lidar_pointcloud_topic_name, imu_topic_name, cmd_vel_topic_name ,use_sim_time):
     action_list = []
-    for i in range(int(context.perform_substitution(robot_count))):
-        robot_description_local = Command(
-            [
-                "xacro ",
-                os.path.join(
-                    get_package_share_directory("simulation_bringup"),
-                    "urdf",
-                    "sensebeetle_original.xacro",
-                ),
-            ]
-        )
-
-        # 2. (新) 本地的 joint_state_publisher (无 namespace)
-        start_joint_state_publisher_local_cmd = Node(
-            package="joint_state_publisher",
-            executable="joint_state_publisher",
-            name="joint_state_publisher", # <-- 无 namespace
-            parameters=[
-                {"use_sim_time": use_sim_time, "robot_description": robot_description_local}
-            ],
-            output="screen",
-        )
-
-        # 3. (新) 本地的 robot_state_publisher (无 namespace, 无 frame_prefix)
-        start_robot_state_publisher_local_cmd = Node(
-            package="robot_state_publisher",
-            executable="robot_state_publisher",
-            name="robot_state_publisher", # <-- 无 namespace
-            parameters=[
-                {"use_sim_time": use_sim_time, 
-                 "robot_description": robot_description_local
-                 # <-- 无 frame_prefix
-                }
-            ],
-            output="screen",
-        )
+    for i in range(int(context.perform_substitution(robot_count))): 
         communication_client_launch = IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(
@@ -133,8 +100,7 @@ def communication_client_launch(context: LaunchContext, robot_count, lidar_topic
         )
         action_list.append(SetEnvironmentVariable("ROS_DOMAIN_ID", str(i + 1)))
         action_list.append(communication_client_launch)
-        action_list.append(start_joint_state_publisher_local_cmd)
-        action_list.append(start_robot_state_publisher_local_cmd)
+    
     action_list.append(SetEnvironmentVariable("ROS_DOMAIN_ID", str(0)))
     return action_list
 
@@ -158,7 +124,40 @@ def world_launch(context: LaunchContext, world_name):
             )
         }.items(),
     )
-    return [world_launch]
+    
+    # 启动 map_server 发布真实地图
+    map_yaml_file = os.path.join(
+        get_package_share_directory("simulation_bringup"),
+        "world",
+        name,
+        name + ".yaml"
+    )
+    
+    map_server_node = Node(
+        package='nav2_map_server',
+        executable='map_server',
+        name='ground_truth_map_server',
+        output='screen',
+        parameters=[{
+            'yaml_filename': map_yaml_file,
+            'topic_name': 'ground_truth_map',
+            'frame_id': 'world'
+        }]
+    )
+    
+    # 启动 lifecycle manager 来激活 map_server
+    lifecycle_manager_node = Node(
+        package='nav2_lifecycle_manager',
+        executable='lifecycle_manager',
+        name='ground_truth_map_lifecycle_manager',
+        output='screen',
+        parameters=[{
+            'autostart': True,
+            'node_names': ['ground_truth_map_server']
+        }]
+    )
+    
+    return [world_launch, map_server_node, lifecycle_manager_node]
 
 
 def generate_launch_description():
@@ -195,7 +194,7 @@ def generate_launch_description():
     )
 
     declare_world_cmd = DeclareLaunchArgument(
-        "world_name", default_value="room1", description="Choose world"
+        "world_name", default_value="office", description="Choose world"
     )
 
     gazebo_client_launch = IncludeLaunchDescription(
@@ -216,6 +215,19 @@ def generate_launch_description():
                 "communication_server.launch.py",
             )
         ),
+    )
+
+    # Integration Service 用于转发真实 odom 到 Domain 10
+    truth_odom_yaml_file = os.path.join(
+        get_package_share_directory("simulation_bringup"),
+        "yaml",
+        "robot_10_original.yaml"
+    )
+    
+    truth_odom_relay_service = ExecuteProcess(
+        cmd=["integration-service", truth_odom_yaml_file],
+        output="screen",
+        shell=False,
     )
 
     ld = LaunchDescription()
@@ -242,6 +254,7 @@ def generate_launch_description():
 
     ld.add_action(gazebo_client_launch)
     ld.add_action(communication_server_launch)
+    ld.add_action(truth_odom_relay_service)  # 添加真实 odom 转发服务
     ld.add_action(OpaqueFunction(function=world_launch, args=[world_name]))
     ld.add_action(
         OpaqueFunction(function=robot_description, args=[robot_count, use_sim_time])

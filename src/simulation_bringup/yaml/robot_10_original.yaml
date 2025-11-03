@@ -1,0 +1,37 @@
+systems:
+    server: { type: ros2, domain: 0, node_name: "domain_id_change_server_10" }
+    client: { type: ros2, domain: 10, node_name: "domain_id_change_client_10" }
+
+routes:
+    client_to_server: { from: client, to: server }
+    server_to_client: { from: server, to: client }
+
+topics:
+    /robot_0/odom:
+        type: "nav_msgs/Odometry"
+        route: server_to_client
+        remap: { server: { topic: "/robot_0/odom" }, client: { topic: "/robot_1/truth_odom" } }
+    /robot_1/odom:
+        type: "nav_msgs/Odometry"
+        route: server_to_client
+        remap: { server: { topic: "/robot_1/odom" }, client: { topic: "/robot_2/truth_odom" } }
+    /robot_2/odom:
+        type: "nav_msgs/Odometry"
+        route: server_to_client
+        remap: { server: { topic: "/robot_2/odom" }, client: { topic: "/robot_3/truth_odom" } }
+    /robot_3/odom:
+        type: "nav_msgs/Odometry"
+        route: server_to_client
+        remap: { server: { topic: "/robot_3/odom" }, client: { topic: "/robot_4/truth_odom" } }
+    /robot_4/odom:
+        type: "nav_msgs/Odometry"
+        route: server_to_client
+        remap: { server: { topic: "/robot_4/odom" }, client: { topic: "/robot_5/truth_odom" } }
+    /changeable_clock: { type: "builtin_interfaces/Time", route: server_to_client }
+    /ground_truth_map:
+        type: "nav_msgs/OccupancyGrid"
+        route: server_to_client
+        qos:
+            durability: TRANSIENT_LOCAL
+            reliability: RELIABLE
+            history: { kind: KEEP_LAST, depth: 1 }

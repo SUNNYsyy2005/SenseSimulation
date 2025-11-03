@@ -12,3 +12,17 @@ topics:
     /robot_1/livox/lidar/pointcloud: { type: "sensor_msgs/PointCloud2", route: server_to_client }
     /robot_1/livox/imu: { type: "sensor_msgs/Imu", route: server_to_client }
     /changeable_clock: { type: "builtin_interfaces/Time", route: server_to_client }
+    /tf:
+        type: "tf2_msgs/TFMessage"
+        route: server_to_client
+        remap: { server: { topic: "/tf" }, client: { topic: "/tf_raw" } }
+    /tf_static:
+        type: "tf2_msgs/TFMessage"
+        route: server_to_client
+        remap: { server: { topic: "/tf_static" }, client: { topic: "/tf_static_raw" } }
+        qos:
+            durability: TRANSIENT_LOCAL
+            reliability: RELIABLE
+            history:
+                kind: KEEP_LAST
+                depth: 100

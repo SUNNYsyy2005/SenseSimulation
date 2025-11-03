@@ -9,6 +9,7 @@
 #include <rclcpp/utilities.hpp>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include "communication_client/communication_client.hpp"
 
@@ -59,6 +60,22 @@ CommunicationClientNode::CommunicationClientNode(
     "/" + cmd_vel_topic_name, 5,
     std::bind(&CommunicationClientNode::CmdVelCallBack, this,
               std::placeholders::_1));
+  
+  // Subscribe to TF topics from Integration Service (on intermediate topics)
+  rclcpp::QoS tf_qos(rclcpp::KeepLast(100));
+  tf_qos.reliable();
+  tf_sub_ = this->create_subscription<tf2_msgs::msg::TFMessage>(
+    "/tf_raw", tf_qos,
+    std::bind(&CommunicationClientNode::TfCallBack, this,
+              std::placeholders::_1));
+  
+  rclcpp::QoS tf_static_qos(rclcpp::KeepLast(100));
+  tf_static_qos.reliable();
+  tf_static_qos.transient_local();
+  tf_static_sub_ = this->create_subscription<tf2_msgs::msg::TFMessage>(
+    "/tf_static_raw", tf_static_qos,
+    std::bind(&CommunicationClientNode::TfStaticCallBack, this,
+              std::placeholders::_1));
 
   clock_pub_ = this->create_publisher<rosgraph_msgs::msg::Clock>("/clock", clock_qos);
   livox_scan_pub_ = this->create_publisher<livox_ros_driver2::msg::CustomMsg>(
@@ -70,6 +87,16 @@ CommunicationClientNode::CommunicationClientNode(
     this->create_publisher<sensor_msgs::msg::Imu>("/" + imu_topic_name, 5);
   cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(
     "/robot_" + std::to_string(robot_id) + "/" + cmd_vel_topic_name, 5);
+  
+  // Publish TF with removed prefix - use same QoS as subscribers
+  rclcpp::QoS tf_pub_qos(rclcpp::KeepLast(100));
+  tf_pub_qos.reliable();
+  tf_pub_ = this->create_publisher<tf2_msgs::msg::TFMessage>("/tf", tf_pub_qos);
+  
+  rclcpp::QoS tf_static_pub_qos(rclcpp::KeepLast(100));
+  tf_static_pub_qos.reliable();
+  tf_static_pub_qos.transient_local();
+  tf_static_pub_ = this->create_publisher<tf2_msgs::msg::TFMessage>("/tf_static", tf_static_pub_qos);
 }
 
 void CommunicationClientNode::ClockCallBack(
@@ -103,6 +130,72 @@ void CommunicationClientNode::CmdVelStampedCallBack(
 void CommunicationClientNode::CmdVelCallBack(
   const geometry_msgs::msg::Twist::ConstSharedPtr cmd_vel_msg) {
   cmd_vel_pub_->publish(*cmd_vel_msg);
+}
+
+void CommunicationClientNode::TfCallBack(
+  const tf2_msgs::msg::TFMessage::ConstSharedPtr tf_msg) {
+  // Remove robot_X/ prefix from frame_id and child_frame_id
+  std::string prefix = "robot_" + std::to_string(robot_id) + "/";
+  
+  tf2_msgs::msg::TFMessage tf_msg_out;
+  tf_msg_out.transforms.reserve(tf_msg->transforms.size());
+  
+  for (const auto& transform : tf_msg->transforms) {
+    // Only process transforms that belong to this robot
+    if (transform.header.frame_id.find(prefix) == 0 || 
+        transform.child_frame_id.find(prefix) == 0) {
+      geometry_msgs::msg::TransformStamped transform_out = transform;
+      
+      // Remove prefix from frame_id
+      if (transform_out.header.frame_id.find(prefix) == 0) {
+        transform_out.header.frame_id = transform_out.header.frame_id.substr(prefix.length());
+      }
+      
+      // Remove prefix from child_frame_id
+      if (transform_out.child_frame_id.find(prefix) == 0) {
+        transform_out.child_frame_id = transform_out.child_frame_id.substr(prefix.length());
+      }
+      
+      tf_msg_out.transforms.push_back(transform_out);
+    }
+  }
+  
+  if (!tf_msg_out.transforms.empty()) {
+    tf_pub_->publish(tf_msg_out);
+  }
+}
+
+void CommunicationClientNode::TfStaticCallBack(
+  const tf2_msgs::msg::TFMessage::ConstSharedPtr tf_static_msg) {
+  // Remove robot_X/ prefix from frame_id and child_frame_id
+  std::string prefix = "robot_" + std::to_string(robot_id) + "/";
+  
+  tf2_msgs::msg::TFMessage tf_static_msg_out;
+  tf_static_msg_out.transforms.reserve(tf_static_msg->transforms.size());
+  
+  for (const auto& transform : tf_static_msg->transforms) {
+    // Only process transforms that belong to this robot
+    if (transform.header.frame_id.find(prefix) == 0 || 
+        transform.child_frame_id.find(prefix) == 0) {
+      geometry_msgs::msg::TransformStamped transform_out = transform;
+      
+      // Remove prefix from frame_id
+      if (transform_out.header.frame_id.find(prefix) == 0) {
+        transform_out.header.frame_id = transform_out.header.frame_id.substr(prefix.length());
+      }
+      
+      // Remove prefix from child_frame_id
+      if (transform_out.child_frame_id.find(prefix) == 0) {
+        transform_out.child_frame_id = transform_out.child_frame_id.substr(prefix.length());
+      }
+      
+      tf_static_msg_out.transforms.push_back(transform_out);
+    }
+  }
+  
+  if (!tf_static_msg_out.transforms.empty()) {
+    tf_static_pub_->publish(tf_static_msg_out);
+  }
 }
 
 }  // namespace communication_client

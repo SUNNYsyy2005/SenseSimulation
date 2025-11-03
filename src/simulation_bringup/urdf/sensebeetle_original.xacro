@@ -251,4 +251,16 @@
     <origin xyz="0.0 0.0 0.15" rpy="0 0 0" />
   </xacro:mid360>
 
+  <xacro:arg name="robot_namespace" default="robot_0"/>
+  <gazebo>
+    <plugin name="p3d_ground_truth_plugin" filename="libgazebo_ros_p3d.so">
+      <ros>
+        <namespace>$(arg robot_namespace)</namespace>
+      </ros>
+      <frame_name>world</frame_name>
+      <body_name>$(arg robot_namespace)::dummy</body_name>
+      <update_rate>10.0</update_rate>
+      <publish_tf>false</publish_tf>
+    </plugin>
+  </gazebo>
 </robot>
