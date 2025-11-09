@@ -17,8 +17,8 @@ from launch.actions import (
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
-rob_x= ['0.0','1.0','2.0']#['13.5','14.0','0.5']
-rob_y = ['0.0','0.0','0.0']#['5.0','5.0','0.0']
+rob_x= ['0.0','0.5','-0.5','-1.0','-1.5']#['13.5','14.0','0.5']
+rob_y = ['0.0','0.0','0.0','0.0','0.0']#['5.0','5.0','0.0']
 def robot_description(context: LaunchContext, robot_count, use_sim_time):
     action_list = []
     for i in range(int(context.perform_substitution(robot_count))):
@@ -160,6 +160,51 @@ def world_launch(context: LaunchContext, world_name):
     return [world_launch, map_server_node, lifecycle_manager_node]
 
 
+def depth_camera_processing_launch(context: LaunchContext, robot_count, use_sim_time):
+    """
+    在各机器人域启动深度相机处理节点
+    
+    Integration Service 已经转发并重映射了以下话题：
+    - /robot_X/camera/color/image_raw (从 /robot_X/camera/image_raw 重映射)
+    - /robot_X/camera/color/camera_info (从 /robot_X/camera/camera_info 重映射)
+    - /robot_X/camera/depth/image_raw (直接转发)
+    - /robot_X/camera/depth/camera_info (直接转发)
+    - /robot_X/camera/points (直接转发)
+    
+    这里使用 depth_image_proc 生成对齐的深度图
+    """
+    action_list = []
+    for i in range(int(context.perform_substitution(robot_count))):
+        # 设置对应的 DOMAIN ID
+        action_list.append(SetEnvironmentVariable("ROS_DOMAIN_ID", str(i + 1)))
+        
+        # 使用 depth_image_proc 的 register 节点生成对齐的深度图
+        depth_color_align_node = Node(
+            package="depth_image_proc",
+            executable="register_node",
+            name="register",
+            namespace="robot_{}/camera".format(i),
+            parameters=[{"use_sim_time": use_sim_time}],
+            remappings=[
+                # 输入：从转发过来的话题读取
+                ("depth/image_rect", "/robot_{}/camera/depth/image_raw".format(i)),
+                ("depth/camera_info", "/robot_{}/camera/depth/camera_info".format(i)),
+                ("rgb/image_rect_color", "/robot_{}/camera/color/image_raw".format(i)),
+                ("rgb/camera_info", "/robot_{}/camera/color/camera_info".format(i)),
+                # 输出：生成对齐的深度图话题
+                ("depth_registered/image_rect", "/robot_{}/camera/aligned_depth_to_color/image_raw".format(i)),
+                ("depth_registered/camera_info", "/robot_{}/camera/aligned_depth_to_color/camera_info".format(i)),
+            ],
+            output="screen",
+        )
+
+        action_list.append(depth_color_align_node)
+
+    # 重置 DOMAIN ID 到默认值
+    action_list.append(SetEnvironmentVariable("ROS_DOMAIN_ID", "0"))
+    return action_list
+
+
 def generate_launch_description():
     robot_count = LaunchConfiguration("robot_count")
     lidar_topic_name = LaunchConfiguration("lidar_topic_name")
@@ -170,7 +215,7 @@ def generate_launch_description():
     world_name = LaunchConfiguration("world_name")
 
     declare_robot_count = DeclareLaunchArgument(
-        "robot_count", default_value="3", description=""
+        "robot_count", default_value="5", description=""
     )
     declare_lidar_topic_name_cmd = DeclareLaunchArgument(
         "lidar_topic_name", default_value="livox/lidar", description=""
@@ -262,5 +307,22 @@ def generate_launch_description():
     ld.add_action(
         OpaqueFunction(function=communication_client_launch, args=[robot_count, lidar_topic_name, lidar_pointcloud_topic_name, imu_topic_name, cmd_vel_topic_name, use_sim_time])
     )
+    
+    # 添加相机话题转发服务（从 DOMAIN 0 转发到各机器人 DOMAIN）
+    camera_relay_yaml_file = os.path.join(
+        get_package_share_directory("simulation_bringup"),
+        "yaml",
+        "camera_relay.yaml"
+    )
+    
+    camera_relay_service = ExecuteProcess(
+        cmd=["integration-service", camera_relay_yaml_file],
+        output="screen",
+        shell=False,
+    )
+    ld.add_action(camera_relay_service)
+    
+    # 添加深度相机处理节点（在各机器人域运行）
+    ld.add_action(OpaqueFunction(function=depth_camera_processing_launch, args=[robot_count, use_sim_time]))
 
     return ld

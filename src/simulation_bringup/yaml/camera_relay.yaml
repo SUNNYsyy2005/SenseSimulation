@@ -1,0 +1,155 @@
+systems:
+    gazebo_domain: { type: ros2, domain: 0, node_name: "camera_relay_gazebo" }
+    robot_1_domain: { type: ros2, domain: 1, node_name: "camera_relay_robot_1" }
+    robot_2_domain: { type: ros2, domain: 2, node_name: "camera_relay_robot_2" }
+    robot_3_domain: { type: ros2, domain: 3, node_name: "camera_relay_robot_3" }
+    robot_4_domain: { type: ros2, domain: 4, node_name: "camera_relay_robot_4" }
+    robot_5_domain: { type: ros2, domain: 5, node_name: "camera_relay_robot_5" }
+
+routes:
+    gazebo_to_robot_1: { from: gazebo_domain, to: robot_1_domain }
+    gazebo_to_robot_2: { from: gazebo_domain, to: robot_2_domain }
+    gazebo_to_robot_3: { from: gazebo_domain, to: robot_3_domain }
+    gazebo_to_robot_4: { from: gazebo_domain, to: robot_4_domain }
+    gazebo_to_robot_5: { from: gazebo_domain, to: robot_5_domain }
+
+topics:
+    # Robot 0 camera topics
+    # 彩色图像 - 转发并重映射为标准 RealSense 话题
+    /robot_0/camera/image_raw:
+        type: "sensor_msgs/Image"
+        route: gazebo_to_robot_1
+        remap: 
+            gazebo_domain: { topic: "/robot_0/camera/image_raw" }
+            robot_1_domain: { topic: "/robot_0/camera/color/image_raw" }
+    
+    # 彩色相机信息 - 转发并重映射
+    /robot_0/camera/camera_info:
+        type: "sensor_msgs/CameraInfo"
+        route: gazebo_to_robot_1
+        remap:
+            gazebo_domain: { topic: "/robot_0/camera/camera_info" }
+            robot_1_domain: { topic: "/robot_0/camera/color/camera_info" }
+    
+    # 深度图像 - 直接转发，话题名称已正确
+    /robot_0/camera/depth/image_raw:
+        type: "sensor_msgs/Image"
+        route: gazebo_to_robot_1
+    
+    # 深度相机信息 - 直接转发
+    /robot_0/camera/depth/camera_info:
+        type: "sensor_msgs/CameraInfo"
+        route: gazebo_to_robot_1
+    
+    # 点云 - 直接转发
+    /robot_0/camera/points:
+        type: "sensor_msgs/PointCloud2"
+        route: gazebo_to_robot_1
+
+    # Robot 1 camera topics
+    /robot_1/camera/image_raw:
+        type: "sensor_msgs/Image"
+        route: gazebo_to_robot_2
+        remap: 
+            gazebo_domain: { topic: "/robot_1/camera/image_raw" }
+            robot_2_domain: { topic: "/robot_1/camera/color/image_raw" }
+    
+    /robot_1/camera/camera_info:
+        type: "sensor_msgs/CameraInfo"
+        route: gazebo_to_robot_2
+        remap:
+            gazebo_domain: { topic: "/robot_1/camera/camera_info" }
+            robot_2_domain: { topic: "/robot_1/camera/color/camera_info" }
+    
+    /robot_1/camera/depth/image_raw:
+        type: "sensor_msgs/Image"
+        route: gazebo_to_robot_2
+    
+    /robot_1/camera/depth/camera_info:
+        type: "sensor_msgs/CameraInfo"
+        route: gazebo_to_robot_2
+    
+    /robot_1/camera/points:
+        type: "sensor_msgs/PointCloud2"
+        route: gazebo_to_robot_2
+
+    # Robot 2 camera topics
+    /robot_2/camera/image_raw:
+        type: "sensor_msgs/Image"
+        route: gazebo_to_robot_3
+        remap: 
+            gazebo_domain: { topic: "/robot_2/camera/image_raw" }
+            robot_3_domain: { topic: "/robot_2/camera/color/image_raw" }
+    
+    /robot_2/camera/camera_info:
+        type: "sensor_msgs/CameraInfo"
+        route: gazebo_to_robot_3
+        remap:
+            gazebo_domain: { topic: "/robot_2/camera/camera_info" }
+            robot_3_domain: { topic: "/robot_2/camera/color/camera_info" }
+    
+    /robot_2/camera/depth/image_raw:
+        type: "sensor_msgs/Image"
+        route: gazebo_to_robot_3
+    
+    /robot_2/camera/depth/camera_info:
+        type: "sensor_msgs/CameraInfo"
+        route: gazebo_to_robot_3
+    
+    /robot_2/camera/points:
+        type: "sensor_msgs/PointCloud2"
+        route: gazebo_to_robot_3
+
+    # Robot 3 camera topics
+    /robot_3/camera/image_raw:
+        type: "sensor_msgs/Image"
+        route: gazebo_to_robot_4
+        remap: 
+            gazebo_domain: { topic: "/robot_3/camera/image_raw" }
+            robot_4_domain: { topic: "/robot_3/camera/color/image_raw" }
+    
+    /robot_3/camera/camera_info:
+        type: "sensor_msgs/CameraInfo"
+        route: gazebo_to_robot_4
+        remap:
+            gazebo_domain: { topic: "/robot_3/camera/camera_info" }
+            robot_4_domain: { topic: "/robot_3/camera/color/camera_info" }
+    
+    /robot_3/camera/depth/image_raw:
+        type: "sensor_msgs/Image"
+        route: gazebo_to_robot_4
+    
+    /robot_3/camera/depth/camera_info:
+        type: "sensor_msgs/CameraInfo"
+        route: gazebo_to_robot_4
+    
+    /robot_3/camera/points:
+        type: "sensor_msgs/PointCloud2"
+        route: gazebo_to_robot_4
+
+    # Robot 4 camera topics
+    /robot_4/camera/image_raw:
+        type: "sensor_msgs/Image"
+        route: gazebo_to_robot_5
+        remap: 
+            gazebo_domain: { topic: "/robot_4/camera/image_raw" }
+            robot_5_domain: { topic: "/robot_4/camera/color/image_raw" }
+    
+    /robot_4/camera/camera_info:
+        type: "sensor_msgs/CameraInfo"
+        route: gazebo_to_robot_5
+        remap:
+            gazebo_domain: { topic: "/robot_4/camera/camera_info" }
+            robot_5_domain: { topic: "/robot_4/camera/color/camera_info" }
+    
+    /robot_4/camera/depth/image_raw:
+        type: "sensor_msgs/Image"
+        route: gazebo_to_robot_5
+    
+    /robot_4/camera/depth/camera_info:
+        type: "sensor_msgs/CameraInfo"
+        route: gazebo_to_robot_5
+    
+    /robot_4/camera/points:
+        type: "sensor_msgs/PointCloud2"
+        route: gazebo_to_robot_5
